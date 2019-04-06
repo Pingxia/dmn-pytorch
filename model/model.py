@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import torch.nn.init as init
 import numpy as np
 import math
 import sys
@@ -30,7 +31,11 @@ class DMN(nn.Module):
         self.z_dim = config.s_rnn_hdim * 4
 
         # rnn layers
+        # input module - use bidirectional GRU
         self.s_rnn = nn.GRU(self.s_rnn_idim, config.s_rnn_hdim, bidirectional=True, batch_first=True)
+        for name, param in self.s_rnn.state_dict().items():
+            if 'weight' in name:
+                init.xavier_normal(param)
         self.q_rnn = nn.GRU(self.q_rnn_idim, config.q_rnn_hdim, batch_first=True)
         self.e_cell = nn.GRUCell(self.e_cell_idim, config.e_cell_hdim)
         self.m_cell = nn.GRUCell(self.m_cell_idim, config.m_cell_hdim)
@@ -73,16 +78,41 @@ class DMN(nn.Module):
         print('%s\n' % '{:,}'.format(total_size))
         return params
     
-    def init_rnn_h(self, batch_size):
-        return Variable(torch.zeros(
-            self.config.s_rnn_ln*1, batch_size, self.config.s_rnn_hdim)).to(self.device)
+    def init_rnn_h(self, batch_size, bidirection=False):
+        if bidirection:
+            return Variable(torch.zeros(
+                self.config.s_rnn_ln*2, batch_size, self.config.s_rnn_hdim)).to(self.device)
+        else:
+            return Variable(torch.zeros(
+                self.config.s_rnn_ln*1, batch_size, self.config.s_rnn_hdim)).to(self.device)
 
     def init_cell_h(self, batch_size):
         return Variable(torch.zeros(batch_size, self.config.s_rnn_hdim)).to(self.device)
 
     def input_module(self, stories, s_lens):
+        word_embed = self.word_embed(stories)
         word_embed = F.dropout(self.word_embed(stories), self.config.word_dr)
-        init_s_rnn_h = self.init_rnn_h(stories.size(0))
+        # DMN plus - position encoder
+        # _, num_sentences = s_lens.size()
+        # batch_size, num_tokens, embedding_length = word_embed.size()
+        # l = [] # It will be same for all sentences in all batches as num_tokens and embedding_length is same 
+        # # for the entire dataset.
+        # for j in range(num_tokens):
+        #     x = []
+        #     for d in range(embedding_length):
+        #         x.append((1 - (j/(num_tokens-1))) - (d/(embedding_length-1)) * (1 - 2*j/(num_tokens-1)))
+        #     l.append(x)
+
+        # l = torch.FloatTensor(l)
+        # l = l.unsqueeze(0) # adding an extra dimension at first place for batch_size
+        # l = l.expand_as(word_embed) # so that l.size() = (batch_size, num_tokens, embedding_length)
+
+        # mat = word_embed*Variable(l.to(self.device))
+        # f_ids = torch.sum(mat, dim=1).squeeze(2)
+
+        # word_embed = F.dropout(mat, self.config.word_dr)
+
+        init_s_rnn_h = self.init_rnn_h(stories.size(0), True)
         gru_out, _ = self.s_rnn(word_embed, init_s_rnn_h)
         gru_out = gru_out.contiguous().view(-1, self.config.s_rnn_hdim).cpu()
         s_lens_offset = (torch.arange(0, stories.size(0)).type(torch.LongTensor)
