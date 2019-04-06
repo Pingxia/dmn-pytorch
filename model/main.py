@@ -7,6 +7,7 @@ import os
 from dataset import Dataset, Config
 from model import DMN
 from run import run_epoch
+import datetime
 
 
 argparser = argparse.ArgumentParser()
@@ -120,5 +121,10 @@ def main():
     print('### end of experiment')
 
 if __name__ == '__main__':
+    startTime = datetime.datetime.now()
+    print('Starting at time: ' + str(startTime))
     main()
+    endTime = datetime.datetime.now()
+    print('Ending at time: ' + str(endTime))
+    print('Total time taken: ' + str(endTime - startTime))
 

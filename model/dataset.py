@@ -8,6 +8,7 @@ import string
 import os
 import gzip
 from os.path import expanduser
+import datetime
 
 import os, ssl
 
@@ -346,6 +347,8 @@ class Config(object):
 """
 
 if __name__ == '__main__':
+    startTime = datetime.datetime.now()
+    print('Starting at time: ' + str(startTime))
     if not os.path.exists('./data'):
         os.makedirs('./data')
     
@@ -392,4 +395,6 @@ if __name__ == '__main__':
                 dataset.decode_data(s[0], q[0], a[0], sf[0], sl[0][:el[0]])
                 print('iteration test pass!', mode)
                 break
-
+    endTime = datetime.datetime.now()
+    print('Ending at time: ' + str(endTime))
+    print('Total time taken: ' + str(endTime - startTime))
